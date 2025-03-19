@@ -1,0 +1,39 @@
+services:
+  mysql:
+    image: mysql:9.2
+    container_name: mysql-oauth
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB}
+    ports:
+      - '${MYSQL_PORT}:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./initdb.d:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db_network
+
+  redis:
+    image: redis:7.4.2
+    container_name: redis_container
+    restart: always
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - db_network
+
+volumes:
+  mysql-data:
+  redis_data:
+
+networks:
+  db_network:
+    driver: bridge
