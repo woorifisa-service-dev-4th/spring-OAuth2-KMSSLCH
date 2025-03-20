@@ -12,8 +12,10 @@ import org.springframework.security.oauth2.server.authorization.client.JdbcRegis
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 
 import javax.sql.DataSource;
+import java.time.Duration;
 import java.util.UUID;
 
 @Configuration
@@ -29,16 +31,21 @@ public class OAuth2ServerConfig {
         RegisteredClient existingClient = repository.findByClientId("oauth2-client-app");
         if (existingClient == null) {
             RegisteredClient registeredClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                    .clientId("oauth2-client-app")
-                    .clientSecret("{noop}secret")
-                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                    .redirectUri("http://127.0.0.1:8081/callback")
+                    .clientId("oauth2-client-app")  // ✅ 클라이언트 ID
+                    .clientSecret("{noop}secret")  // ✅ 클라이언트 시크릿 (암호화 필요)
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)  // ✅ 클라이언트 인증 방식
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE) // ✅ 인가 코드 방식
+                    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN) // ✅ 리프레시 토큰 허용
+                    .redirectUri("http://127.0.0.1:8081") // ✅ 요청 URL과 일치하도록 변경
+                    .scope(OidcScopes.OPENID) // ✅ OIDC 스코프
                     .scope("read")
                     .scope("write")
+                    .tokenSettings(TokenSettings.builder()
+                            .accessTokenTimeToLive(Duration.ofHours(2))  // :흰색_확인_표시: Access Token 만료시간 (기본: 5분 → 2시간)
+                            .refreshTokenTimeToLive(Duration.ofDays(30)) // :흰색_확인_표시: Refresh Token 만료시간 (기본: 1시간 → 30일)
+                            .build())
                     .clientSettings(ClientSettings.builder()
-                            .requireAuthorizationConsent(true)  // ✅ 동의(Consent) 페이지 활성화
+                            .requireAuthorizationConsent(true)  // ✅ 동의 페이지 활성화
                             .build())
                     .build();
 
