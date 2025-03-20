@@ -6,4 +6,10 @@ export function SessionProvider({ children, session }) {
   return <NextAuthSessionProvider session={session}>{children}</NextAuthSessionProvider>;
 }
 
-export const useSession = nextAuthUseSession;
+export function useSession() {
+  const session = nextAuthUseSession();
+  return {
+    session: session.data,
+    loading: session.status === "loading"
+  };
+}
