@@ -1,0 +1,342 @@
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\SecurityApplication.java
+package com.example.resource;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SecurityApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(SecurityApplication.class, args);
+	}
+
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\config\MethodSecurityConfig.java
+package com.example.resource.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
+@Configuration
+@EnableMethodSecurity
+public class MethodSecurityConfig {
+    // 별도의 추가 설정 없이 메서드 보안 활성화
+}
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\config\ResourceServerSecurityConfig.java
+package com.example.resource.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+public class ResourceServerSecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                // CSRF 비활성화 (필요에 따라 조정)
+                .csrf(AbstractHttpConfigurer::disable)
+                // 모든 요청에 대해 인증 적용
+                .authorizeHttpRequests(authorize -> authorize
+                        // Swagger 관련 엔드포인트는 인증 없이 접근 허용
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**",
+                                "/configuration/**"
+                        ).permitAll()
+                        // /api/products 엔드포인트는 인증 요구
+                        .requestMatchers("/api/products/**").authenticated()
+                        // 그 외의 요청은 필요에 따라 설정
+                        .anyRequest().permitAll()
+                )
+                // OAuth2 Resource Server로 JWT 토큰 검증 설정
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+
+        return http.build();
+    }
+}
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\controller\ProductController.java
+package com.example.resource.controller;
+
+import com.example.resource.dto.AddProductDto;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.resource.entity.Product;
+import com.example.resource.repository.ProductRepository;
+import com.example.resource.dto.BaseResponseDto;
+import com.example.resource.dto.ApiResponseType;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+
+    private final ProductRepository productRepository;
+
+    public ProductController(ProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
+    // 모든 사용자 (ROLE_USER, ROLE_ADMIN)에게 GET 접근 허용
+    @GetMapping
+//    @PreAuthorize("hasAnyAuthority('ROLE_USER', 'ROLE_ADMIN')")
+    public BaseResponseDto<List<Product>> getAllProducts() {
+        List<Product> products = productRepository.findAll();
+        return new BaseResponseDto<>(ApiResponseType.SUCCESS, products);
+    }
+
+    // ROLE_ADMIN만 접근 가능: 상품 생성
+    @PostMapping
+    public BaseResponseDto<Product> createProduct(@RequestBody AddProductDto dto) {
+        // DTO를 엔티티로 변환
+        Product product = Product.builder()
+                .name(dto.name())
+                .price(dto.price())
+                .description(dto.description())
+                .build();
+        // 변환한 엔티티를 저장
+        Product savedProduct = productRepository.save(product);
+        return new BaseResponseDto<>(ApiResponseType.SUCCESS, savedProduct);
+    }
+
+
+    // ROLE_ADMIN만 접근 가능: 상품 수정 (POST 방식)
+    @PostMapping("/{id}")
+//    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public BaseResponseDto<Product> updateProduct(@PathVariable Long id, @RequestBody Product productDetails) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id " + id));
+        product.setName(productDetails.getName());
+        product.setDescription(productDetails.getDescription());
+        product.setPrice(productDetails.getPrice());
+        Product updatedProduct = productRepository.save(product);
+        return new BaseResponseDto<>(ApiResponseType.SUCCESS, updatedProduct);
+    }
+
+    // ROLE_ADMIN만 접근 가능: 상품 삭제 (POST 방식, URL 예시: /api/products/delete/{id})
+    @PostMapping("/delete/{id}")
+//    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public BaseResponseDto<Void> deleteProduct(@PathVariable Long id) {
+        productRepository.deleteById(id);
+        return new BaseResponseDto<>(ApiResponseType.SUCCESS, null);
+    }
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\dto\AddProductDto.java
+package com.example.resource.dto;
+
+import java.math.BigDecimal;
+
+public record AddProductDto(String name, BigDecimal price, String description) {
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\dto\ApiResponseType.java
+package com.example.resource.dto;
+
+import lombok.Getter;
+
+@Getter
+public enum ApiResponseType {
+    SUCCESS("200", "성공"),
+    INVALID_TOKEN("401", "인증 실패"),
+    FORBIDDEN("403", "권한 없음"),
+    OUTDATED_TOKEN("419", "토큰 만료"),
+    ERROR("500", "서버 오류");
+
+    private final String status;
+    private final String message;
+
+    ApiResponseType(String status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\dto\BaseResponseDto.java
+package com.example.resource.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
+public class BaseResponseDto<T> {
+    // Getter & Setter
+    private String status;
+    private String message;
+    private T data;
+
+    public BaseResponseDto() {
+    }
+
+    public BaseResponseDto(ApiResponseType responseType, T data) {
+        this.status = responseType.getStatus();
+        this.message = responseType.getMessage();
+        this.data = data;
+    }
+
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\entity\Product.java
+package com.example.resource.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "products")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Product {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(nullable = false)
+    private BigDecimal price;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+}
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\exception\GlobalExceptionHandler.java
+package com.example.resource.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import com.example.resource.dto.BaseResponseDto;
+import com.example.resource.dto.ApiResponseType;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<BaseResponseDto<Object>> handleAllExceptions(Exception ex) {
+        // 예외 발생 시 ApiResponseType.ERROR를 사용하고, 메시지를 세팅
+        BaseResponseDto<Object> response = new BaseResponseDto<>(ApiResponseType.ERROR, null);
+        response.setMessage(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\repository\ProductRepository.java
+package com.example.resource.repository;
+
+import com.example.resource.entity.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+
+}
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\security\CustomAccessDeniedHandler.java
+package com.example.resource.security;
+
+import com.example.resource.dto.ApiResponseType;
+import com.example.resource.dto.BaseResponseDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+
+@Component
+public class CustomAccessDeniedHandler implements AccessDeniedHandler {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response,
+                       AccessDeniedException accessDeniedException) throws IOException {
+        BaseResponseDto<Object> errorResponse = new BaseResponseDto<>(ApiResponseType.FORBIDDEN, null);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(Integer.parseInt(ApiResponseType.FORBIDDEN.getStatus()));
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+    }
+}
+
+
+C:\woori-workspace\lecture\15. Spring Security\OAuth_example\security-resource\src\main\java\com\example\resource\security\CustomAuthenticationEntryPoint.java
+package com.example.resource.security;
+
+import com.example.resource.dto.ApiResponseType;
+import com.example.resource.dto.BaseResponseDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+@Component
+public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response,
+                         AuthenticationException authException) throws IOException {
+        ApiResponseType responseType;
+
+        // 토큰 만료 예외 처리 (ExpiredJwtException 또는 JwtException 사용)
+        if (authException.getCause() != null &&
+                authException.getCause().getMessage() != null &&
+                authException.getCause().getMessage().toLowerCase().contains("expired")) {
+            responseType = ApiResponseType.OUTDATED_TOKEN;
+        } else {
+            responseType = ApiResponseType.INVALID_TOKEN;
+        }
+        response.setCharacterEncoding("UTF-8");
+        BaseResponseDto<Object> errorResponse = new BaseResponseDto<>(responseType, null);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(Integer.parseInt(responseType.getStatus()));
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+    }
+}
+
+
