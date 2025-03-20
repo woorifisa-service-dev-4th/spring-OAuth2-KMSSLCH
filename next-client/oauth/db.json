@@ -1,0 +1,16 @@
+{
+    "resources": [
+      {
+        "id": 1,
+        "userName": "김말똥",
+        "phoneNumber": "010-1111-1234",
+        "position": "개발"
+      },
+      {
+        "id": 2,
+        "userName": "아무개",
+        "phoneNumber": "010-2222-1234",
+        "position": "디자인"
+      }
+    ]
+  }
