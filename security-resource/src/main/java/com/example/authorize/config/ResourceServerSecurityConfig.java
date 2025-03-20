@@ -16,7 +16,21 @@ public class ResourceServerSecurityConfig {
                 // CSRF 비활성화 (필요에 따라 조정)
                 .csrf(AbstractHttpConfigurer::disable)
                 // 모든 요청에 대해 인증 적용
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(authorize -> authorize
+                        // Swagger 관련 엔드포인트는 인증 없이 접근 허용
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**",
+                                "/configuration/**"
+                        ).permitAll()
+                        // /api/products 엔드포인트는 인증 요구
+                        .requestMatchers("/api/products/**").authenticated()
+                        // 그 외의 요청은 필요에 따라 설정
+                        .anyRequest().permitAll()
+                )
                 // OAuth2 Resource Server로 JWT 토큰 검증 설정
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 

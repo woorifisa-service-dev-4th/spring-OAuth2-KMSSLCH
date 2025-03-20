@@ -32,7 +32,7 @@ public class ProductController {
     }
 
     // ROLE_ADMIN만 접근 가능: 상품 수정
-    @PutMapping("/{id}")
+    @PostMapping("/{id}")
 //    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public Product updateProduct(@PathVariable Long id, @RequestBody Product productDetails) {
         Product product = productRepository.findById(id)
